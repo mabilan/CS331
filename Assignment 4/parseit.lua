@@ -10,25 +10,25 @@
 --		program		→	stmt_list
 --		stmt_list	→	{ statement }
 --		statement	→	‘write’ ‘(’ write_arg { ‘,’ write_arg } ‘)’
---					|  	‘def’ ID ‘(’ ‘)’ stmt_list ‘end’
---					|  	‘if’ expr stmt_list { ‘elseif’ expr stmt_list } [ ‘else’ stmt_list ] ‘end’
---					|  	‘while’ expr stmt_list ‘end’
---					|  	‘return’ expr
---					|  	ID ( ‘(’ ‘)’ | [ ‘[’ expr ‘]’ ] ‘=’ expr )
+--				|  	‘def’ ID ‘(’ ‘)’ stmt_list ‘end’
+--				|  	‘if’ expr stmt_list { ‘elseif’ expr stmt_list } [ ‘else’ stmt_list ] ‘end’
+--				|  	‘while’ expr stmt_list ‘end’
+--				|  	‘return’ expr
+--				|  	ID ( ‘(’ ‘)’ | [ ‘[’ expr ‘]’ ] ‘=’ expr )
 --		write_arg	→  	‘cr’
---					|  	STRLIT
---					|  	expr
+--				|  	STRLIT
+--				|  	expr
 --		expr		→  	comp_expr { ( ‘&&’ | ‘||’ ) comp_expr }
 --		comp_expr	→  	‘!’ comp_expr
---					|  	arith_expr { ( ‘==’ | ‘!=’ | ‘<’ | ‘<=’ | ‘>’ | ‘>=’ ) arith_expr }
+--				|  	arith_expr { ( ‘==’ | ‘!=’ | ‘<’ | ‘<=’ | ‘>’ | ‘>=’ ) arith_expr }
 --		arith_expr	→  	term { ( ‘+’ | ‘-’ ) term }
 --		term		→  	factor { ( ‘*’ | ‘/’ | ‘%’ ) factor }
 --		factor		→  	‘(’ expr ‘)’
---					|  	( ‘+’ | ‘-’ ) factor
---					|  	NUMLIT
---					|  	( ‘true’ | ‘false’ )
---					|  	‘readnum’ ‘(’ ‘)’
---					|  	ID [ ‘(’ ‘)’ | ‘[’ expr ‘]’ ]
+--				|  	( ‘+’ | ‘-’ ) factor
+--				|  	NUMLIT
+--				|  	( ‘true’ | ‘false’ )
+--				|  	‘readnum’ ‘(’ ‘)’
+--				|  	ID [ ‘(’ ‘)’ | ‘[’ expr ‘]’ ]
 --
 -- All operators are left-associative.
 --
