@@ -8,7 +8,7 @@
 
 -- Grammar
 --		program		→	stmt_list
---  	stmt_list	→	{ statement }
+--		stmt_list	→	{ statement }
 --		statement	→	‘write’ ‘(’ write_arg { ‘,’ write_arg } ‘)’
 --					|  	‘def’ ID ‘(’ ‘)’ stmt_list ‘end’
 --					|  	‘if’ expr stmt_list { ‘elseif’ expr stmt_list } [ ‘else’ stmt_list ] ‘end’
