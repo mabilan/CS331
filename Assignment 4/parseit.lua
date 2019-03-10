@@ -193,12 +193,23 @@ local function matchCat(c)
     end
 end
 
+-- isStatement
+-- Returns true if current lexeme indicates the start of any
+-- of the statements defined by the grammar (see above)
+local function isStatement()
+	return lexemeString == "write"
+		or lexemeString == "def"
+		or lexemeString == "if"
+		or lexemeString == "while"
+		or lexemeString == "return"
+		or lexemeCategory == lexit.ID
+end
 
 -- *****************************
 -- *** Primary Function Call ***
 -- *****************************
 
--- local statemets for parsing functions
+-- local statemets for non-terminal parsing functions
 local parse_program
 local parse_stmt_list
 local parse_statement
@@ -208,6 +219,13 @@ local parse_comp_expr
 local parse_arith_expr
 local parse_term
 local parse_factor
+
+-- local statements for terminal statement handler functions
+local handle_statement_def
+local handle_statement_if
+local handle_statement_while
+local handle_statement_return
+local handle_statement_ID
 
 -- parse
 -- Given program, initialize parser and call parsing function for start
@@ -229,90 +247,408 @@ end
 
 
 
+-- ************************************
+-- *** Parsing Functions & Handlers ***
+-- ************************************
 
--- *************************
--- *** Parsing Functions ***
--- *************************
-
--- Each function below parses a nonterminal from the Jerboa grammer. Each
--- functin parses the nonterminal in its name (e.g. parse_program parses
+-- Parsing functions below parse a nonterminal from the Jerboa grammer.
+-- Functions parse the nonterminal in their name (e.g. parse_program parses
 -- the "program" nonterminal) and returns a pair:
 --		{Parse Success Status, AST}
 -- When parse success is true, the AST is valid. Otherwise, the AST is
 -- invalid, and no guarantees can be made about the current lexeme. The
 -- AST grammar and spec above outline the formatting of returned ASTs.
+-- Handler functions assist in terminal evaluation for their parent
+-- parsing function. (e.g. handle_statement_def assists in parsing the "def"
+-- terminal for parent non-terminal stamement)
+
 
 -- NOTE: Function init must be called prior to any parsing function calls
+
 
 -- parse_program
 -- Parsing function for nonterminal "program"
 function parse_program()
-	local good, ast, newast
-	
-	good, ast = parse_stmt_list()
-	
-	if not good then
-		return false, nil
-	end
-	
-	ast = { STMT_LIST, ast }
-	
-	return true, ast
+	return parse_stmt_list()
 end
 
 -- parse_stmt_list
 -- Parsing function for nonterminal "stmt_list"
 function parse_stmt_list()
-	local good, ast, newast
+	local good, newast
+	local ast = {STMT_LIST}
 	
-	good, ast = parse_statement()
+	while isStatement() do
+		good, newast = parse_statement()
+		if not good then
+			return false, nil
+		end
+		ast[#ast+1] = newast
+	end
+	
+	return true, ast
+end
+
+-- parse_statement
+-- Parsing function for nonterminal "statement"
+-- Must only be called from parse_stmt_list. Will only
+-- be called if valid statement is detected.
+function parse_statement()
+	if matchString("write") then
+		return parse_write_arg()
+	elseif matchString("def") then
+		return handle_statement_def()
+	elseif matchString("if") then
+		return handle_statement_if()
+	elseif matchString("while") then
+		return handle_statement_while()
+	elseif matchString("return") then
+		return handle_statement_return()
+	else
+		return handle_statement_ID()
+	end
+end
+
+-- parse_write_arg
+-- Parsing function for nonterminal "write_arg"
+-- This function must only be called from parse_statement
+function parse_write_arg()
+    local ast = {WRITE_STMT}
+    local good, newast
+	local currentLexeme
+	
+    if not matchString("(") then
+        return false, nil
+    end
+
+    repeat
+        currentLexeme = lexemeString
+
+        if matchString("cr") then
+            ast[#ast + 1] = {CR_OUT}
+        elseif matchCat(lexit.STRLIT) then
+            ast[#ast + 1] = {STRLIT_OUT, currentLexeme}
+        else
+            good, newast = parse_expr()
+
+            if not good then
+                return false, nil
+            end
+
+            ast[#ast + 1] = newast
+        end
+    until not matchString(",")
+
+    if matchString(")") then
+        return true, ast
+    end
+    return false, nil
+end
+
+-- handle_statement_def
+-- Handles terminal def resolution for parent nonterminal
+-- statement. (Function Definition)
+-- This function must only be called from parse_statement.
+function handle_statement_def()
+	local good, ast
+	local currentLexeme = lexemeString
+	
+	if matchCat(lexit.ID) and matchString("(") and matchString(")") then
+		good, ast = parse_stmt_list()
+		
+		if good and matchString("end") then
+			return true, {FUNC_DEF, currentLexeme, ast}
+		end
+	end
+	
+	return false, nil
+end
+
+-- handle_statement_if
+-- Handles terminal if resolution for parent nonterminal
+-- statement.
+-- This function must only be called from parse_statement.
+function handle_statement_if()
+    local ast = {IF_STMT}
+	local good, newast
+	
+	repeat
+		good, newast = parse_expr()
+		if not good then
+			return false, nil
+		end
+		ast[#ast+1] = newast
+		
+		good, newast = parse_stmt_list()
+		
+		if not good then
+			return false, nil
+		end
+		
+		ast[#ast+1] = newast
+	until not matchString("elseif")
+	
+    if matchString("else") then
+        good, newast = parse_stmt_list()
+
+        if not good then
+            return false, nil
+        end
+        ast[#ast + 1] = newast
+    end
+
+    if not matchString("end") then
+        return false, nil
+    end
+
+    return true, ast
+end
+
+-- handle_statement_while
+-- Handles terminal while resolution for parent nonterminal
+-- statement.
+-- This function must only be called from parse_statement.
+function handle_statement_while()
+	local ast
+	local good, newast = parse_expr()
+
+	if not good then
+		return false, nil
+	end			
+	
+	ast = {WHILE_STMT, newast}
+
+	good, newast = parse_stmt_list()
+
+	if not good then
+		return false, nil
+	end
+	
+	ast[#ast+1] = newast
+	
+	if matchString("end") then
+		return true, ast
+	end
+	
+	return false, nil
+end
+
+
+-- handle_statement_return
+-- Handles terminal return resolution for parent nonterminal
+-- statement.
+-- This function must only be called from parse_statement.
+function handle_statement_return()
+	local good, ast = parse_expr()
 	
 	if not good then
 		return false, nil
 	end
 	
-	while true do
-		good, newast = parse_statement()
+	return true, {RETURN_STMT, ast}
+end
+
+-- handle_statement_ID
+-- Handles terminal ID resolution for parent nonterminal
+-- statement. Resulting statement may be function call, array
+-- variable, or simple variable.
+-- This function must only be called from parse_statement.
+function handle_statement_ID()
+	local currentLexeme = lexemeString
+	local good, newast
+	local ast = {ASSN_STMT}
+	
+	if not matchCat(lexit.ID) then
+		return false, nil
+	end
+	
+	if matchString("(") and matchString(")") then
+		return true, {FUNC_CALL, currentLexeme}
+	elseif matchString("[") then
+		good, newast = parse_expr()
+		
+		if not good or not matchString("]") then
+			return false, nil
+		end
+		
+		ast[2] = {ARRAY_VAR, currentLexeme, newast}
+	else
+		ast[2] = {SIMPLE_VAR, currentLexeme}
+	end
+	
+	if matchString("=") then
+		good, newast = parse_expr()
 		if not good then
 			return false, nil
 		end
 		
-end
-
--- parse_statement
--- Parsing function for nonterminal "statement"
-function parse_statement()
-end
-
--- parse_write_arg
--- Parsing function for nonterminal "write_arg"
-function parse_write_arg()
+		ast[3] = newast
+		return true, ast
+	end
+	
+	return false, nil
 end
 
 -- parse_expr
 -- Parsing function for nonterminal "expr"
 function parse_expr()
+	local newast, currentLexeme
+    local good, ast = parse_comp_expr()
+
+    if not good then
+        return false, nil
+    end
+
+    currentLexeme = lexemeString
+    while matchString("&&") or matchString("||") do
+        good, newast = parse_comp_expr()
+		
+        if not good then
+            return false, nil
+        end
+        ast = {{BIN_OP, currentLexeme}, ast, newast}
+        currentLexeme = lexemeString
+    end
+
+    return true, ast
 end
 
 -- parse_comp_expr
 -- Parsing function for nonterminal "comp_expr"
 function parse_comp_expr()
+    local good, ast, newast, currentLexeme
+	
+    if matchString("!") then
+        good, ast = parse_comp_expr()
+
+        if not good then
+            return false, nil
+		end
+        return true, {{UN_OP, "!"}, ast}
+	end
+
+    good, ast = parse_arith_expr()
+
+    if not good then
+        return false, nil
+    end
+
+    currentLexeme = lexemeString
+    while matchString("==") or matchString("!=")
+			or matchString("<") or matchString("<=")
+			or matchString(">") or matchString(">=") do
+
+        good, newast = parse_arith_expr()
+
+        if not good then
+            return false, nil
+        end
+        ast = {{BIN_OP, currentLexeme}, ast, newast}
+        currentLexeme = lexemeString
+    end
+
+    return true, ast
 end
 
 -- parse_arith_expr
 -- Parsing function for nonterminal "arith_expr"
 function parse_arith_expr()
+	local good, ast, newast, currentLexeme
+	good, ast = parse_term()
+
+	if not good then
+		return false, nil
+	end
+	
+	currentLexeme = lexemeString
+	while matchString("+") or matchString("-") do
+		good, newast = parse_term()
+		
+		if not good then
+			return false, nil
+		end
+		
+		ast = {{BIN_OP, currentLexeme}, ast, newast}
+		currentLexeme = lexemeString
+	end
+	
+	return true, ast
 end
 
 -- parse_term
 -- Parsing function for nonterminal "term"
 function parse_term()
+    local newast, currentLexeme
+    local good, ast = parse_factor()
+
+    if not good then
+        return false, nil
+    end
+
+    currentLexeme = lexemeString
+    while matchString("*") or matchString("/") or matchString("%") do
+        good, newast = parse_factor()
+
+        if not good then
+            return false, nil
+        end
+
+        ast = {{BIN_OP, currentLexeme}, ast, newast}
+        currentLexeme = lexemeString
+    end
+
+    return true, ast
 end
 
 -- parse_factor
 -- Parsing function for nonterminal "factor"
 function parse_factor()
+	local good, ast
+    local currentLexeme = lexemeString
+
+    if matchString("(") then
+        good, ast = parse_expr()
+
+        if good and matchString(")") then
+            return true, ast
+        else
+			return false, nil
+		end
+    elseif matchString("+") or matchString("-") then
+        good, ast = parse_factor()
+		
+        if not good then
+            return false, nil
+        end
+		
+		return true, {{UN_OP, currentLexeme}, ast}
+    elseif matchCat(lexit.NUMLIT) then
+        return true, {NUMLIT_VAL, currentLexeme}
+    elseif matchString("true") or matchString("false") then
+        return true, {BOOLLIT_VAL, currentLexeme}
+    elseif matchString("readnum") then
+        if matchString("(") and matchString(")") then
+            return true, {READNUM_CALL}
+        end
+    elseif matchCat(lexit.ID) then
+        if matchString("(") and matchString(")") then
+                return true, {FUNC_CALL, currentLexeme}
+        elseif matchString("[") then
+            good, ast = parse_expr()
+
+            if not good or not matchString("]") then
+                return false, nil
+            end
+			
+            return true, {ARRAY_VAR, currentLexeme, ast}
+		else
+            return true,{SIMPLE_VAR, currentLexeme}
+        end
+    end
+
+    return false, nil
 end
+
 
 
 -- *********************
