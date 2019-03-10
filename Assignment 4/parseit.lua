@@ -247,11 +247,36 @@ end
 -- parse_program
 -- Parsing function for nonterminal "program"
 function parse_program()
+	local good, ast, newast
+	
+	good, ast = parse_stmt_list()
+	
+	if not good then
+		return false, nil
+	end
+	
+	ast = { STMT_LIST, ast }
+	
+	return true, ast
 end
 
 -- parse_stmt_list
 -- Parsing function for nonterminal "stmt_list"
 function parse_stmt_list()
+	local good, ast, newast
+	
+	good, ast = parse_statement()
+	
+	if not good then
+		return false, nil
+	end
+	
+	while true do
+		good, newast = parse_statement()
+		if not good then
+			return false, nil
+		end
+		
 end
 
 -- parse_statement
