@@ -11,32 +11,51 @@
 
 module Main where
 
-import System.IO
 import Data.List
-
-main :: IO ()
-main = do
-    putStrLn ""
-    putStrLn "This program will find the median value of a sequence of integer inputs."
-    putStrLn "(Note: Bad input will crash the program!)"
-    putStrLn ""
-	hflush stdout
-	
-    inputs <- getUserInputs
-	print (sort inputs)
-	
-    _ <-getLine
-    return()
-
+import System.IO
 
 -- getUserInputs
-getUserInputs :: IO [Int]
+-- Returns IO wrapped list of user inputs.
 getUserInputs = do
+    putStrLn "Enter an integer (blank line to end): "
     input <- getLine
-	let n = read input
-	
-	if input == ""
-	    then return []
-	else do
-		nextInput <- getUserInputs
-		return (input : nextInput)
+    if input == "" then
+        return ([])
+    else do
+        let thisInt = (read input) :: Int
+        nextInt <- getUserInputs
+        return (thisInt:nextInt)
+
+-- getMedian
+-- Returns median of list
+getMedian list = list !! ((length list) `div` 2)
+
+main = do
+    putStrLn ""
+    putStrLn "Enter a list of integers to find their median."
+    putStrLn "(Note: I don't like bad input)"
+    putStrLn ""
+    userInputs <- getUserInputs
+
+    if (null userInputs) then do
+        putStrLn "Empty lists do not have medians"
+        restartCheck
+    else do
+        putStrLn ""
+        putStrLn ("Sorted List: " ++ show (sort userInputs))
+        putStrLn ("Median: " ++ show (getMedian (sort userInputs)))
+
+        restartCheck
+    where
+        restartCheck = do
+            putStrLn ""
+            putStr "Find another median [Y/n] "
+            choice <- getChar
+            putStrLn ""
+            if choice == 'Y' then do
+                main
+            else if choice == 'n' then do
+                putStrLn "Good-bye!"
+                return ()
+            else
+                restartCheck
